@@ -1,0 +1,144 @@
+version: "3.8"
+name: "air"
+
+services:
+  # ====================
+  # Redis
+  # ====================
+  redis:
+    image: redis:7
+    container_name: redis-air
+    command: ["redis-server", "--notify-keyspace-events", "Ex"]
+    ports:
+      - "6379:6379"
+
+  # ====================
+  # Postgres SQL
+  # ====================
+  postgres:
+    image: postgres:16
+    container_name: postgres-air
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Abc123
+    ports:
+      - "5432:5432"
+
+  # ====================
+  # Kafka (KRaft Mode)
+  # ====================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9094:9094"
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+  # ====================
+  # User Service
+  # ====================
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "7001:8080"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user-air-db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: Abc123
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+  # ====================
+  # Flight Service
+  # ====================
+  flight-service:
+    build:
+      context: ./flight-service
+      dockerfile: Dockerfile
+    container_name: flight-service
+    ports:
+      - "7002:8080"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+
+  # ====================
+  # Seat Service
+  # ====================
+  seat-service:
+    build:
+      context: ./seat-service
+      dockerfile: Dockerfile
+    container_name: seat-service
+    ports:
+      - "7003:8080"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+
+  # ====================
+  # Booking Service
+  # ====================
+  booking-service:
+    build:
+      context: ./booking-service
+      dockerfile: Dockerfile
+    container_name: booking-service
+    ports:
+      - "7004:8080"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+
+  # ====================
+  # Payment Service
+  # ====================
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "7005:8080"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+
+  # ====================
+  # Orchestrator Service (Saga)
+  # ====================
+  orchestrator-service:
+    build:
+      context: ./orchestrator-service
+      dockerfile: Dockerfile
+    container_name: orchestrator-service
+    ports:
+      - "7006:8080"
+    depends_on:
+      - redis
+      - kafka

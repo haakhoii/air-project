@@ -1,0 +1,26 @@
+server:
+  port: 8086
+  servlet:
+    context-path: /orchestrators
+
+spring:
+  application:
+    name: orchestrator-service
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+app:
+  services:
+    bookings: http://localhost:8084/bookings
+    payments: http://localhost:8085/payments
+    seats: http://localhost:8083/seats
+    flights: http://localhost:8082/flights
+
+redisson:
+  address: redis://${SPRING_DATA_REDIS_HOST:localhost}:${SPRING_DATA_REDIS_PORT:6379}
+  timeout: 3000
+  connectionPoolSize: 64
+  connectionMinimumIdleSize: 10

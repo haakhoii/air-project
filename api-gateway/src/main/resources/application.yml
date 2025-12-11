@@ -1,0 +1,63 @@
+server:
+  port: 8080
+
+app:
+  api-prefix: /api/v1
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      routes:
+        - id: user-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=${app.api-prefix}/users/**
+          filters:
+            - StripPrefix=2
+
+        - id: flight-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=${app.api-prefix}/flights/**
+          filters:
+            - StripPrefix=2
+
+        - id: seat-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=${app.api-prefix}/seats/**
+          filters:
+            - StripPrefix=2
+
+        - id: booking-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=${app.api-prefix}/bookings/**
+          filters:
+            - StripPrefix=2
+
+        - id: payment-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=${app.api-prefix}/payments/**
+          filters:
+            - StripPrefix=2
+
+        - id: orchestrator-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=${app.api-prefix}/orchestrators/**
+          filters:
+            - StripPrefix=2
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+    hostname: localhost
+    instance-id: ${spring.application.name}:localhost:${server.port}

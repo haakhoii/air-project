@@ -1,0 +1,40 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /users
+
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/user-air-db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:Abc123}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+jwt:
+  signerKey: EE9xZEJfG1xKXMxQefTFYb7seVfqropeNEG9AcwGkd0Qcxc/4wyerJAxsCFc/HdjxyZfvP7Oysqhs1tqDBI0Pw==
+  expiryMinutes: 15
+  expiryDays: 1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+    hostname: user-service
+    instance-id: ${spring.application.name}:${server.port}
