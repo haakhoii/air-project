@@ -2,7 +2,7 @@ package com.air.booking_service.mapper;
 
 import com.air.booking_service.entity.Booking;
 import com.air.common_service.dto.response.BookingResponse;
-import com.air.common_service.dto.response.BookingSeatResponse;
+import com.air.common_service.dto.response.CancelBookingResponse;
 import com.air.common_service.dto.response.SeatResponse;
 
 import java.util.List;
@@ -19,9 +19,11 @@ public class BookingMapper {
                 .build();
     }
 
-    public static BookingSeatResponse toBookingSeatResponse(String holdBy, List<SeatResponse> seats) {
-        return BookingSeatResponse.builder()
-                .holdBy(holdBy)
+    public static CancelBookingResponse toCancelBookingResponse(Booking booking, List<SeatResponse> seats) {
+        return CancelBookingResponse.builder()
+                .id(booking.getId())
+                .flightId(booking.getFlightId())
+                .userId(booking.getUserId())
                 .seats(seats)
                 .totalPrice(0.0)
                 .build();

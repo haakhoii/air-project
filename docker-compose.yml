@@ -142,3 +142,17 @@ services:
     depends_on:
       - redis
       - kafka
+
+  # ====================
+  # Notification Service (Saga)
+  # ====================
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "7007:8080"
+    depends_on:
+      - redis
+      - kafka

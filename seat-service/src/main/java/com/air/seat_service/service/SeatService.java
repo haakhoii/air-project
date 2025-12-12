@@ -184,7 +184,7 @@ public class SeatService {
             String redisKey = "seat:hold:" + seat.getId();
             redisTemplate.delete(redisKey);
 
-            if (seat.getSeatStatus() == SeatStatus.HOLD) {
+            if (seat.getSeatStatus() == SeatStatus.HOLD || seat.getSeatStatus() == SeatStatus.BOOKED) {
                 seat.setSeatStatus(SeatStatus.AVAILABLE);
                 seat.setHoldBy(null);
             }

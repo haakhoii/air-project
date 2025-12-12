@@ -3,10 +3,9 @@ package com.air.booking_service.controller;
 import com.air.booking_service.service.BookingService;
 import com.air.common_service.dto.ApiResponse;
 import com.air.common_service.dto.request.BookingCreateRequest;
-import com.air.common_service.dto.request.BookingRequest;
 import com.air.common_service.dto.request.HoldSeatRequest;
 import com.air.common_service.dto.response.BookingResponse;
-import com.air.common_service.dto.response.BookingSeatResponse;
+import com.air.common_service.dto.response.CancelBookingResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -29,8 +28,8 @@ public class BookingController {
 
     @PostMapping("/cancel-seat")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    ApiResponse<BookingSeatResponse> cancelSeat(@RequestBody HoldSeatRequest request) {
-        return ApiResponse.<BookingSeatResponse>builder()
+    ApiResponse<CancelBookingResponse> cancelSeat(@RequestBody HoldSeatRequest request) {
+        return ApiResponse.<CancelBookingResponse>builder()
                 .result(bookingService.cancelSeat(request))
                 .build();
     }
@@ -50,4 +49,13 @@ public class BookingController {
                 .result("UPDATED")
                 .build();
     }
+
+    @PostMapping("/mark-cancelled/{bookingId}")
+    public ApiResponse<String> markCancelled(@PathVariable("bookingId") String bookingId) {
+        bookingService.markCancelled(bookingId);
+        return ApiResponse.<String>builder()
+                .result("BOOKING_CANCELLED")
+                .build();
+    }
+
 }

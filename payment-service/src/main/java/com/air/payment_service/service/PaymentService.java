@@ -100,4 +100,32 @@ public class PaymentService {
                 .createdAt(payment.getCreatedAt())
                 .build();
     }
+
+    @Transactional
+    public PaymentResponse cancel(PaymentRequest req) {
+
+        String bookingId = req.getBookingId();
+        String userId = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Payment payment = paymentRepository.findByBookingId(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.PAYMENT_NOT_FOUND));
+
+        if (payment.getStatus() == PaymentStatus.FAILED) {
+            throw new AppException(ErrorCode.PAYMENT_FAILED);
+        }
+
+        payment.setStatus(PaymentStatus.FAILED);
+        paymentRepository.save(payment);
+
+        return PaymentResponse.builder()
+                .paymentId(payment.getId())
+                .bookingId(payment.getBookingId())
+                .userId(payment.getUserId())
+                .totalPrice(payment.getTotalPrice())
+                .paymentMethod(payment.getPaymentMethod())
+                .paymentStatus(PaymentStatus.FAILED)
+                .createdAt(payment.getCreatedAt())
+                .build();
+    }
+
 }

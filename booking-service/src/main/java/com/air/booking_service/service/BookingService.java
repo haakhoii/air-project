@@ -10,7 +10,7 @@ import com.air.common_service.constants.SeatClass;
 import com.air.common_service.dto.request.BookingCreateRequest;
 import com.air.common_service.dto.request.HoldSeatRequest;
 import com.air.common_service.dto.response.BookingResponse;
-import com.air.common_service.dto.response.BookingSeatResponse;
+import com.air.common_service.dto.response.CancelBookingResponse;
 import com.air.common_service.dto.response.FlightResponse;
 import com.air.common_service.dto.response.SeatResponse;
 import com.air.common_service.exception.AppException;
@@ -106,7 +106,7 @@ public class BookingService {
         bookingRepository.delete(booking);
     }
 
-    public BookingSeatResponse cancelSeat(HoldSeatRequest request) {
+    public CancelBookingResponse cancelSeat(HoldSeatRequest request) {
         String holdBy = SecurityContextHolder.getContext().getAuthentication().getName();
 
         List<SeatResponse> seats = seatClient.cancel(request).getResult();
@@ -124,7 +124,10 @@ public class BookingService {
         String redisKey = "booking:pending:" + booking.getId();
         redisTemplate.delete(redisKey);
 
-        return BookingMapper.toBookingSeatResponse(holdBy, seats);
+        CancelBookingResponse cancelBookingResponse = BookingMapper.toCancelBookingResponse(booking, seats);
+        cancelBookingResponse.setBookingStatus(BookingStatus.CANCEL);
+
+        return cancelBookingResponse;
     }
 
     @Transactional(readOnly = true)
@@ -132,16 +135,16 @@ public class BookingService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 
-        if (booking.getBookingStatus() != BookingStatus.PENDING) {
-            throw new AppException(ErrorCode.BOOKING_INVALID_STATUS);
-        }
+//        if (booking.getBookingStatus() != BookingStatus.PENDING) {
+//            throw new AppException(ErrorCode.BOOKING_INVALID_STATUS);
+//        }
 
-        String redisKey = BOOKING_KEY + bookingId;
-        Boolean existed = redisTemplate.hasKey(redisKey);
-
-        if (Boolean.FALSE.equals(existed)) {
-            throw new AppException(ErrorCode.BOOKING_EXPIRED);
-        }
+//        String redisKey = BOOKING_KEY + bookingId;
+//        Boolean existed = redisTemplate.hasKey(redisKey);
+//
+//        if (Boolean.FALSE.equals(existed)) {
+//            throw new AppException(ErrorCode.BOOKING_EXPIRED);
+//        }
 
         HoldSeatRequest getSeatsRequest = new HoldSeatRequest(booking.getSeatIds());
         List<SeatResponse> seats = seatClient.getSeats(getSeatsRequest).getResult();
@@ -172,4 +175,14 @@ public class BookingService {
 
         redisTemplate.delete(redisKey);
     }
+
+    @Transactional
+    public void markCancelled(String bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        booking.setBookingStatus(BookingStatus.CANCEL);
+        bookingRepository.save(booking);
+    }
+
 }

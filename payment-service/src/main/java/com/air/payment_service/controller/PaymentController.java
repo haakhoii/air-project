@@ -25,4 +25,13 @@ public class PaymentController {
                 .result(paymentService.pay(request))
                 .build();
     }
+
+    @PostMapping("/cancel")
+    @PreAuthorize("hasRole('USER')")
+    ApiResponse<PaymentResponse> cancel(@RequestBody PaymentRequest request) {
+        return ApiResponse.<PaymentResponse>builder()
+                .result(paymentService.cancel(request))
+                .build();
+    }
+
 }

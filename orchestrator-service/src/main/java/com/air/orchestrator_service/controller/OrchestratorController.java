@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,5 +30,14 @@ public class OrchestratorController {
                 .result(result)
                 .build();
     }
+
+    @PostMapping("/cancel/{bookingId}")
+    @PreAuthorize("hasRole('USER')")
+    public ApiResponse<PaymentResponse> cancelBooking(@PathVariable("bookingId") String bookingId) {
+        return ApiResponse.<PaymentResponse>builder()
+                .result(orchestratorService.cancelBooking(bookingId))
+                .build();
+    }
+
 }
 

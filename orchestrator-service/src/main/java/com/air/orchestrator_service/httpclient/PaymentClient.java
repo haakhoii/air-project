@@ -12,4 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface PaymentClient {
     @PostMapping("/pay")
     ApiResponse<PaymentResponse> pay(@RequestBody PaymentRequest request);
+
+    @PostMapping("/cancel")
+    ApiResponse<PaymentResponse> cancelPayment(@RequestBody PaymentRequest request);
+
 }

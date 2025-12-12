@@ -18,21 +18,30 @@
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
         </processorPath>
         <module name="common-service" />
-        <module name="payment-service" />
         <module name="booking-service" />
         <module name="api-gateway" />
+        <module name="orchestrator-service" />
         <module name="seat-service" />
         <module name="user-service" />
         <module name="flight-service" />
       </profile>
-      <profile name="Annotation profile for orchestrator-service" enabled="true">
+      <profile name="Annotation profile for notification-service" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
         </processorPath>
-        <module name="orchestrator-service" />
+        <module name="notification-service" />
+      </profile>
+      <profile name="Annotation profile for payment-service" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+        </processorPath>
+        <module name="payment-service" />
       </profile>
     </annotationProcessing>
   </component>
@@ -43,6 +52,7 @@
       <module name="common-service" options="" />
       <module name="discovery-server" options="" />
       <module name="flight-service" options="" />
+      <module name="notification-service" options="" />
       <module name="orchestrator-service" options="" />
       <module name="payment-service" options="" />
       <module name="seat-service" options="" />

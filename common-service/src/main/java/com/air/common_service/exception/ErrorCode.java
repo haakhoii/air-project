@@ -27,7 +27,8 @@ public enum ErrorCode {
     SEAT_HOLD_FAILED(1018, "Seat hold failed",  HttpStatus.NOT_FOUND),
     BOOKING_FAILED(1019, "Booking failed", HttpStatus.BAD_REQUEST),
     SYSTEM_BUSY(1020, "System busy", HttpStatus.INTERNAL_SERVER_ERROR),
-    SYSTEM_ERROR(1021, "System error", HttpStatus.INTERNAL_SERVER_ERROR)
+    SYSTEM_ERROR(1021, "System error", HttpStatus.INTERNAL_SERVER_ERROR),
+    PAYMENT_NOT_FOUND(1022, "Payment not found", HttpStatus.NOT_FOUND)
     ;
 
     private final int code;
