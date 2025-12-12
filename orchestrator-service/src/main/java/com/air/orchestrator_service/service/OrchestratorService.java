@@ -5,11 +5,13 @@ import com.air.common_service.constants.PaymentMethod;
 import com.air.common_service.dto.request.BookingCreateRequest;
 import com.air.common_service.dto.request.HoldSeatRequest;
 import com.air.common_service.dto.request.PaymentRequest;
+import com.air.common_service.dto.request.VerifyHoldRequest;
 import com.air.common_service.dto.response.BookingResponse;
 import com.air.common_service.dto.response.PaymentResponse;
 import com.air.common_service.dto.response.SeatResponse;
 import com.air.common_service.exception.AppException;
 import com.air.common_service.exception.ErrorCode;
+import com.air.event.BookingCreatedEvent;
 import com.air.event.PaymentFailedEvent;
 import com.air.event.PaymentSuccessEvent;
 import com.air.orchestrator_service.httpclient.*;
@@ -42,65 +44,107 @@ public class OrchestratorService {
     KafkaTemplate<String, Object> kafkaTemplate;
 
     String BOOKING_KEY = "booking:pending:";
-    String PAYMENT_SUCCESS ="payment-success";
 
     @Transactional
-    public PaymentResponse bookAndPay(BookingCreateRequest request, PaymentMethod method) {
+    public BookingResponse createBookingAndHold(BookingCreateRequest request) {
 
         String userId = SecurityContextHolder.getContext().getAuthentication().getName();
-        String lockKey = "orchestrator:booking:" + request.getFlightId() + ":" + userId;
-        RLock lock = redissonClient.getLock(lockKey);
+
+        if (request.getSeatIds() == null || request.getSeatIds().isEmpty()) {
+            throw new AppException(ErrorCode.SEAT_NOT_FOUND);
+        }
+
+        HoldSeatRequest holdRequest = HoldSeatRequest.builder()
+                .seatIds(request.getSeatIds())
+                .build();
+
+        List<SeatResponse> heldSeats = seatClient.holdSeat(holdRequest).getResult();
+        if (heldSeats == null || heldSeats.isEmpty()) {
+            throw new AppException(ErrorCode.SEAT_HOLD_FAILED);
+        }
+
+        BookingResponse booking = bookingClient.booking(request).getResult();
+
+        String redisKey = BOOKING_KEY + booking.getId();
+        redisTemplate.opsForValue().set(redisKey, userId, 1, TimeUnit.MINUTES);
+
+        BookingCreatedEvent event = BookingCreatedEvent.builder()
+                .bookingId(booking.getId())
+                .userId(userId)
+                .flightId(booking.getFlightId())
+                .seatIds(request.getSeatIds())
+                .bookingStatus(BookingStatus.PENDING.name())
+                .build();
+        kafkaTemplate.send("booking-created", event);
+
+        return booking;
+    }
+
+    @Transactional
+    public PaymentResponse pay(String bookingId, PaymentMethod method) {
+
+        String userId = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        BookingResponse booking = bookingClient.getBooking(bookingId).getResult();
+        if (booking == null) {
+            throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+
+        if (!booking.getUserId().equals(userId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (booking.getBookingStatus() != BookingStatus.PENDING) {
+            throw new AppException(ErrorCode.BOOKING_INVALID_STATUS);
+        }
+
+        String redisKey = BOOKING_KEY + bookingId;
+        Boolean existed = redisTemplate.hasKey(redisKey);
+        if (Boolean.FALSE.equals(existed)) {
+            cancelBookingAndSeats(booking);
+            throw new AppException(ErrorCode.BOOKING_EXPIRED);
+        }
 
         try {
-            if (!lock.tryLock(10, 60, TimeUnit.SECONDS)) {
-                throw new AppException(ErrorCode.SYSTEM_BUSY);
-            }
-
-            BookingResponse booking = bookingClient.booking(request).getResult();
-
-            String redisKey = BOOKING_KEY + booking.getId();
-            Boolean existed = redisTemplate.hasKey(redisKey);
-            if (Boolean.FALSE.equals(existed)) {
-                cancelBookingAndSeats(booking);
-                throw new AppException(ErrorCode.BOOKING_EXPIRED);
-            }
-
-            PaymentRequest paymentRequest = PaymentRequest.builder()
-                    .bookingId(booking.getId())
-                    .paymentMethod(method)
-                    .build();
-
-            PaymentResponse paymentResponse = paymentClient.pay(paymentRequest).getResult();
-
-            PaymentSuccessEvent event = PaymentSuccessEvent.builder()
-                    .bookingId(booking.getId())
-                    .userId(userId)
-                    .flightId(booking.getFlightId())
+            VerifyHoldRequest verifySeats = VerifyHoldRequest.builder()
                     .seatIds(booking.getSeats().stream().map(SeatResponse::getId).toList())
-                    .totalPrice(paymentResponse.getTotalPrice())
-                    .paymentMethod(paymentResponse.getPaymentMethod().name())
+                    .userId(userId)
                     .build();
-            kafkaTemplate.send(PAYMENT_SUCCESS, event).get();
-            log.info("Emitted payment-success event for booking: {}", booking.getId());
 
-            redisTemplate.delete(redisKey);
-
-            return paymentResponse;
-
-        } catch (AppException ae) {
-            if (ae.getErrorCode() != ErrorCode.SYSTEM_BUSY) {
-                rollbackBookingAndSeats(request);
+            Boolean ok = seatClient.verifyHold(verifySeats).getResult();
+            if (!Boolean.TRUE.equals(ok)) {
+                cancelBookingAndSeats(booking);
+                throw new AppException(ErrorCode.SEAT_HOLD_EXPIRED);
             }
-            throw ae;
 
         } catch (Exception ex) {
-            rollbackBookingAndSeats(request);
-            throw new AppException(ErrorCode.SYSTEM_ERROR);
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
+            cancelBookingAndSeats(booking);
+            throw ex;
         }
+
+        PaymentRequest payReq = PaymentRequest.builder()
+                .bookingId(bookingId)
+                .paymentMethod(method)
+                .build();
+
+        PaymentResponse paymentResponse = paymentClient.pay(payReq).getResult();
+
+        PaymentSuccessEvent event = PaymentSuccessEvent.builder()
+                .bookingId(booking.getId())
+                .userId(userId)
+                .flightId(booking.getFlightId())
+                .seatIds(booking.getSeats().stream().map(SeatResponse::getId).toList())
+                .totalPrice(paymentResponse.getTotalPrice())
+                .paymentMethod(method.name())
+                .paymentStatus(paymentResponse.getPaymentStatus().name())
+                .bookingStatus(BookingStatus.PAID.name())
+                .build();
+
+        kafkaTemplate.send("payment-success", event);
+
+        redisTemplate.delete(redisKey);
+
+        return paymentResponse;
     }
 
     private void rollbackBookingAndSeats(BookingCreateRequest request) {
@@ -145,50 +189,74 @@ public class OrchestratorService {
 
     @Transactional
     public PaymentResponse cancelBooking(String bookingId) {
-
+        String currentUserId = SecurityContextHolder.getContext().getAuthentication().getName();
         BookingResponse booking = bookingClient.getBooking(bookingId).getResult();
+
+        if (!booking.getUserId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
 
         if (booking.getBookingStatus() == BookingStatus.CANCEL ||
                 booking.getBookingStatus() == BookingStatus.EXPIRED) {
             throw new AppException(ErrorCode.BOOKING_INVALID_STATUS);
         }
 
-        PaymentRequest req = PaymentRequest.builder()
-                .bookingId(bookingId)
-                .paymentMethod(null)
-                .build();
+        String lockKey = "orchestrator:cancel-booking:" + bookingId;
+        RLock lock = redissonClient.getLock(lockKey);
 
-        PaymentResponse paymentResponse = paymentClient.cancelPayment(req).getResult();
+        try {
+            if (!lock.tryLock(10, 30, TimeUnit.SECONDS)) {
+                throw new AppException(ErrorCode.SYSTEM_BUSY);
+            }
 
-        bookingClient.markCancelled(bookingId);
+            PaymentRequest req = PaymentRequest.builder()
+                    .bookingId(bookingId)
+                    .paymentMethod(null)
+                    .build();
+            PaymentResponse paymentResponse = paymentClient.cancelPayment(req).getResult();
 
-        List<String> seatIds = booking.getSeats().stream()
-                .map(SeatResponse::getId)
-                .toList();
+            bookingClient.markCancelled(bookingId);
 
-        seatClient.cancel(HoldSeatRequest.builder()
-                .seatIds(seatIds)
-                .build());
+            List<String> seatIds = booking.getSeats().stream()
+                    .map(SeatResponse::getId)
+                    .toList();
 
+            seatClient.cancel(HoldSeatRequest.builder()
+                    .seatIds(seatIds)
+                    .build());
 
-        String redisKey = BOOKING_KEY + bookingId;
-        redisTemplate.delete(redisKey);
+            redisTemplate.delete(BOOKING_KEY + bookingId);
 
-        PaymentFailedEvent event = PaymentFailedEvent.builder()
-                .bookingId(booking.getId())
-                .userId(booking.getUserId())
-                .flightId(booking.getFlightId())
-                .seatIds(seatIds)
-                .totalPrice(paymentResponse.getTotalPrice())
-                .paymentMethod(paymentResponse.getPaymentMethod() == null
-                        ? null
-                        : paymentResponse.getPaymentMethod().name())
-                .build();
+            PaymentFailedEvent event = PaymentFailedEvent.builder()
+                    .bookingId(booking.getId())
+                    .userId(booking.getUserId())
+                    .flightId(booking.getFlightId())
+                    .seatIds(seatIds)
+                    .totalPrice(paymentResponse.getTotalPrice())
+                    .paymentMethod(paymentResponse.getPaymentMethod() == null
+                            ? null
+                            : paymentResponse.getPaymentMethod().name())
+                    .paymentStatus(paymentResponse.getPaymentStatus().name())
+                    .bookingStatus(BookingStatus.CANCEL.name())
+                    .build();
 
-        kafkaTemplate.send("payment-failed", event);
+            kafkaTemplate.send("payment-failed", event);
 
-        return paymentResponse;
+            return paymentResponse;
+
+        } catch (AppException ae) {
+            throw ae;
+
+        } catch (Exception ex) {
+            throw new AppException(ErrorCode.SYSTEM_ERROR);
+
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
     }
+
 
 }
 

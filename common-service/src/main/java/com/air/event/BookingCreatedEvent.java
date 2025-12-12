@@ -11,7 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class PaymentFailedEvent {
+public class BookingCreatedEvent {
     private String bookingId;
     private String userId;
     private String flightId;

@@ -1,16 +1,16 @@
 package com.air.common_service.dto.request;
 
-import com.air.common_service.constants.PaymentMethod;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.util.List;
 
 @Data
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class BookAndPayRequest {
-    String bookingId;
-    PaymentMethod paymentMethod;
+public class VerifyHoldRequest {
+    private List<String> seatIds;
+    private String userId;
 }

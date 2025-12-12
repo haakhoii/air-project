@@ -135,17 +135,6 @@ public class BookingService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 
-//        if (booking.getBookingStatus() != BookingStatus.PENDING) {
-//            throw new AppException(ErrorCode.BOOKING_INVALID_STATUS);
-//        }
-
-//        String redisKey = BOOKING_KEY + bookingId;
-//        Boolean existed = redisTemplate.hasKey(redisKey);
-//
-//        if (Boolean.FALSE.equals(existed)) {
-//            throw new AppException(ErrorCode.BOOKING_EXPIRED);
-//        }
-
         HoldSeatRequest getSeatsRequest = new HoldSeatRequest(booking.getSeatIds());
         List<SeatResponse> seats = seatClient.getSeats(getSeatsRequest).getResult();
 

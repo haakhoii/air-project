@@ -3,6 +3,7 @@ package com.air.seat_service.controller;
 import com.air.common_service.dto.ApiResponse;
 import com.air.common_service.dto.request.HoldSeatRequest;
 import com.air.common_service.dto.request.SeatRequest;
+import com.air.common_service.dto.request.VerifyHoldRequest;
 import com.air.common_service.dto.response.SeatResponse;
 import com.air.seat_service.service.SeatService;
 import lombok.AccessLevel;
@@ -57,6 +58,13 @@ public class SeatController {
     ApiResponse<List<SeatResponse>> getSeats(@RequestBody HoldSeatRequest request) {
         return ApiResponse.<List<SeatResponse>>builder()
                 .result(seatService.getSeats(request))
+                .build();
+    }
+
+    @PostMapping("/internal/verify-hold")
+    ApiResponse<Boolean> verifyHold(@RequestBody VerifyHoldRequest request) {
+        return ApiResponse.<Boolean>builder()
+                .result(seatService.verifyHold(request))
                 .build();
     }
 

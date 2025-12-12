@@ -18,4 +18,6 @@ public class PaymentSuccessEvent {
     private List<String> seatIds;
     private Double totalPrice;
     private String paymentMethod;
+    private String paymentStatus;
+    private String bookingStatus;
 }

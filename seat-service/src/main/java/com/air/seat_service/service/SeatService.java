@@ -2,8 +2,10 @@ package com.air.seat_service.service;
 
 import com.air.common_service.constants.SeatClass;
 import com.air.common_service.constants.SeatStatus;
+import com.air.common_service.dto.ApiResponse;
 import com.air.common_service.dto.request.HoldSeatRequest;
 import com.air.common_service.dto.request.SeatRequest;
+import com.air.common_service.dto.request.VerifyHoldRequest;
 import com.air.common_service.dto.response.FlightResponse;
 import com.air.common_service.dto.response.SeatResponse;
 import com.air.common_service.exception.AppException;
@@ -90,8 +92,7 @@ public class SeatService {
                 acquiredKeys.add(lockKey);
             }
 
-            // 2) Load seats with DB-level locking to prevent concurrent DB updates
-            List<Seat> seats = seatRepository.findAllByIdInForUpdate(seatIds); // custom repo method with PESSIMISTIC_WRITE
+            List<Seat> seats = seatRepository.findAllByIdInForUpdate(seatIds);
 
             if (seats.size() != seatIds.size()) {
                 // release locks
@@ -99,49 +100,37 @@ public class SeatService {
                 throw new AppException(ErrorCode.SEAT_NOT_FOUND);
             }
 
-            // validate and update seats
             for (Seat seat : seats) {
-                // If db shows BOOKED -> fail
                 if (seat.getSeatStatus() == SeatStatus.BOOKED) {
                     throw new AppException(ErrorCode.SEAT_ALREADY_BOOKED);
                 }
-                // If seat is HOLD but not match redis (someone else holds) -> fail
                 String holdKey = SEAT_HOLD_KEY + seat.getId();
                 boolean redisHeld = Boolean.TRUE.equals(redisTemplate.hasKey(holdKey));
                 if (seat.getSeatStatus() == SeatStatus.HOLD && !redisHeld) {
-                    // seat marked HOLD in DB but no redis key => treat as available (cleanup) OR conflict, here conflict
                     throw new AppException(ErrorCode.SEAT_ALREADY_HELD);
                 }
-                // OK -> set DB status to HOLD and holdBy
                 seat.setSeatStatus(SeatStatus.HOLD);
                 seat.setHoldBy(holdBy);
             }
 
-            // save within transaction
             seatRepository.saveAll(seats);
 
-            // 3) persist the "hold" redis keys (these are the canonical TTL keys used by expiry listener)
             for (String seatId : seatIds) {
                 String holdKey = SEAT_HOLD_KEY + seatId;
                 redisTemplate.opsForValue().set(holdKey, holdBy, HOLD_TTL_SECONDS, TimeUnit.SECONDS);
             }
 
-            // release "lock" keys (but keep hold keys)
             for (String lockKey : acquiredKeys) redisTemplate.delete(lockKey);
 
-            // fetch flight to build response
             FlightResponse flight = flightClient.getFlightById(seats.get(0).getFlightId()).getResult();
             return SeatMapper.toSeatResponseList(seats, flight);
 
         } catch (AppException ae) {
-            // Under @Transactional any DB changes are rolled back automatically
-            // Ensure we cleanup any lock keys we created
             for (String k : acquiredKeys) {
                 try { redisTemplate.delete(k); } catch (Exception ignore) {}
             }
             throw ae;
         } catch (Exception ex) {
-            // cleanup
             for (String k : acquiredKeys) {
                 try { redisTemplate.delete(k); } catch (Exception ignore) {}
             }
@@ -228,6 +217,41 @@ public class SeatService {
         }
 
         return SeatMapper.toSeatResponseList(seats, flight);
+    }
+
+    public Boolean verifyHold(VerifyHoldRequest request) {
+        String currentUser = request.getUserId();
+        if (currentUser == null || currentUser.isBlank()) {
+            currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
+        }
+
+        List<String> seatIds = request.getSeatIds();
+        if (seatIds == null || seatIds.isEmpty()) {
+            throw new AppException(ErrorCode.SEAT_NOT_FOUND);
+        }
+
+        List<Seat> seats = seatRepository.findAllById(seatIds);
+        if (seats.size() != seatIds.size()) {
+            throw new AppException(ErrorCode.SEAT_NOT_FOUND);
+        }
+
+        for (Seat seat : seats) {
+            if (seat.getSeatStatus() != SeatStatus.HOLD) {
+                throw new AppException(ErrorCode.SEAT_NOT_HELD);
+            }
+
+            if (!currentUser.equals(seat.getHoldBy())) {
+                throw new AppException(ErrorCode.SEAT_ALREADY_HELD);
+            }
+
+            String holdKey = SEAT_HOLD_KEY + seat.getId();
+            Long ttl = redisTemplate.getExpire(holdKey);
+            if (ttl == null || ttl <= 0) {
+                throw new AppException(ErrorCode.SEAT_HOLD_EXPIRED);
+            }
+        }
+
+        return true;
     }
 
 }
