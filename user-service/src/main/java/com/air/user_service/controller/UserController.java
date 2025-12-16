@@ -70,7 +70,7 @@ public class UserController {
                 .build();
     }
 
-    @DeleteMapping("/del/{userId}")
+    @DeleteMapping("/del")
     @PreAuthorize("hasRole('USER')")
     ApiResponse<String> deleteUser(
             @RequestParam(name = "userId") String userId
