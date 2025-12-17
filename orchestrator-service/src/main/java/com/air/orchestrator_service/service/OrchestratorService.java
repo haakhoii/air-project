@@ -2,10 +2,7 @@ package com.air.orchestrator_service.service;
 
 import com.air.common_service.constants.BookingStatus;
 import com.air.common_service.constants.PaymentMethod;
-import com.air.common_service.dto.request.BookingCreateRequest;
-import com.air.common_service.dto.request.HoldSeatRequest;
-import com.air.common_service.dto.request.PaymentRequest;
-import com.air.common_service.dto.request.VerifyHoldRequest;
+import com.air.common_service.dto.request.*;
 import com.air.common_service.dto.response.BookingResponse;
 import com.air.common_service.dto.response.PaymentResponse;
 import com.air.common_service.dto.response.SeatResponse;
@@ -71,8 +68,10 @@ public class OrchestratorService {
         BookingCreatedEvent event = BookingCreatedEvent.builder()
                 .bookingId(booking.getId())
                 .userId(userId)
+                .createdBy(userId)
                 .flightId(booking.getFlightId())
                 .seatIds(request.getSeatIds())
+                .totalPrice(booking.getTotalPrice())
                 .bookingStatus(BookingStatus.PENDING.name())
                 .build();
         kafkaTemplate.send("booking-created", event);
@@ -257,6 +256,117 @@ public class OrchestratorService {
         }
     }
 
+    @Transactional
+    public BookingResponse adminCreateBookingAndHold(AdminCreateBookingRequest request) {
 
+        String adminId = SecurityContextHolder.getContext()
+                .getAuthentication().getName();
+
+        if (request.getSeatIds() == null || request.getSeatIds().isEmpty()) {
+            throw new AppException(ErrorCode.SEAT_NOT_FOUND);
+        }
+
+        seatClient.holdSeat(
+                HoldSeatRequest.builder()
+                        .seatIds(request.getSeatIds())
+                        .build()
+        );
+
+        BookingCreateRequest bookingReq = new BookingCreateRequest();
+        bookingReq.setFlightId(request.getFlightId());
+        bookingReq.setSeatIds(request.getSeatIds());
+
+        BookingResponse booking = bookingClient
+                .adminBookForGuest(bookingReq)
+                .getResult();
+
+        String redisKey = BOOKING_KEY + booking.getId();
+        redisTemplate.opsForValue()
+                .set(redisKey, adminId, 1, TimeUnit.MINUTES);
+
+        BookingCreatedEvent event = BookingCreatedEvent.builder()
+                .bookingId(booking.getId())
+                .userId(booking.getUserId())
+                .createdBy(booking.getCreatedBy())
+                .flightId(booking.getFlightId())
+                .seatIds(request.getSeatIds())
+                .totalPrice(booking.getTotalPrice())
+                .bookingStatus(BookingStatus.PENDING.name())
+                .build();
+
+
+        kafkaTemplate.send("booking-created", event);
+
+        return booking;
+    }
+
+    @Transactional
+    public PaymentResponse adminPayForGuest(String bookingId) {
+        String adminId = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        BookingResponse booking = bookingClient.getBooking(bookingId).getResult();
+        if (booking == null) {
+            throw new AppException(ErrorCode.BOOKING_NOT_FOUND);
+        }
+
+        if (booking.getBookingStatus() != BookingStatus.PENDING) {
+            throw new AppException(ErrorCode.BOOKING_INVALID_STATUS);
+        }
+
+        String redisKey = BOOKING_KEY + bookingId;
+        if (Boolean.FALSE.equals(redisTemplate.hasKey(redisKey))) {
+            cancelBookingAndSeats(booking);
+            throw new AppException(ErrorCode.BOOKING_EXPIRED);
+        }
+
+        VerifyHoldRequest verifyReq = VerifyHoldRequest.builder()
+                .seatIds(
+                        booking.getSeats()
+                                .stream()
+                                .map(SeatResponse::getId)
+                                .toList()
+                )
+                .userId(adminId)
+                .build();
+
+        if (!Boolean.TRUE.equals(seatClient.verifyHold(verifyReq).getResult())) {
+            cancelBookingAndSeats(booking);
+            throw new AppException(ErrorCode.SEAT_HOLD_EXPIRED);
+        }
+
+        PaymentRequest paymentRequest = PaymentRequest.builder()
+                .bookingId(bookingId)
+                .paymentMethod(PaymentMethod.CASH)
+                .build();
+
+        PaymentResponse payment = paymentClient.pay(paymentRequest).getResult();
+
+//        bookingClient.markPaid(bookingId);
+
+        redisTemplate.delete(redisKey);
+
+        PaymentSuccessEvent event = PaymentSuccessEvent.builder()
+                .bookingId(bookingId)
+                .userId(booking.getUserId())
+                .createdBy(booking.getCreatedBy())
+                .flightId(booking.getFlightId())
+                .seatIds(
+                        booking.getSeats()
+                                .stream()
+                                .map(SeatResponse::getId)
+                                .toList()
+                )
+                .totalPrice(payment.getTotalPrice())
+                .paymentMethod(PaymentMethod.CASH.name())
+                .paymentStatus(payment.getPaymentStatus().name())
+                .bookingStatus(BookingStatus.PAID.name())
+                .build();
+
+        kafkaTemplate.send("payment-success", event);
+
+        return payment;
+    }
 }
 

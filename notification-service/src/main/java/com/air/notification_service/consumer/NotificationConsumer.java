@@ -49,14 +49,12 @@ public class NotificationConsumer {
     public void handleBookingCreatedEvent(BookingCreatedEvent event) {
 
         log.info("==============================================");
-        log.info("❌ RECEIVED PAYMENT FAILED EVENT");
+        log.info("✅ BOOKING SEATS");
         log.info("Booking ID      : {}", event.getBookingId());
         log.info("User ID         : {}", event.getUserId());
         log.info("Flight ID       : {}", event.getFlightId());
         log.info("Seat IDs        : {}", event.getSeatIds());
         log.info("Total Price     : {}", event.getTotalPrice());
-        log.info("Payment Method  : {}", event.getPaymentMethod());
-        log.info("Payment Status  : {}", event.getPaymentStatus());
         log.info("Booking Status  : {}", event.getBookingStatus());
         log.info("==============================================");
 

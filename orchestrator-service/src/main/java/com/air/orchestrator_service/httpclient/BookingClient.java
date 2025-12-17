@@ -29,4 +29,7 @@ public interface BookingClient {
     @PostMapping("/mark-cancelled/{bookingId}")
     ApiResponse<String> markCancelled(@PathVariable("bookingId") String bookingId);
 
+    @PostMapping("/admin/book")
+    ApiResponse<BookingResponse> adminBookForGuest(@RequestBody BookingCreateRequest request);
+
 }

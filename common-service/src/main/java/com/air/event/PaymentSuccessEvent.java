@@ -14,6 +14,7 @@ import java.util.List;
 public class PaymentSuccessEvent {
     private String bookingId;
     private String userId;
+    private String createdBy;
     private String flightId;
     private List<String> seatIds;
     private Double totalPrice;

@@ -14,10 +14,9 @@ import java.util.List;
 public class BookingCreatedEvent {
     private String bookingId;
     private String userId;
+    private String createdBy;
     private String flightId;
     private List<String> seatIds;
     private Double totalPrice;
-    private String paymentMethod;
-    private String paymentStatus;
     private String bookingStatus;
 }

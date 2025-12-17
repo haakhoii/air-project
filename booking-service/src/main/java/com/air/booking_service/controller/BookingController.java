@@ -58,4 +58,14 @@ public class BookingController {
                 .build();
     }
 
+    @PostMapping("/admin/book")
+    @PreAuthorize("hasRole('ADMIN')")
+    ApiResponse<BookingResponse> adminBookForGuest(
+            @RequestBody BookingCreateRequest request
+    ) {
+        return ApiResponse.<BookingResponse>builder()
+                .result(bookingService.bookForGuest(request))
+                .build();
+    }
+
 }

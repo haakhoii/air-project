@@ -13,6 +13,7 @@ public class BookingMapper {
                 .id(booking.getId())
                 .flightId(booking.getFlightId())
                 .userId(booking.getUserId())
+                .createdBy(booking.getCreatedBy())
                 .seats(seats)
                 .totalPrice(booking.getTotalPrice())
                 .bookingStatus(booking.getBookingStatus())

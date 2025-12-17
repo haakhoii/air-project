@@ -23,6 +23,8 @@ public class Booking implements Serializable {
 
     String userId;
 
+    String createdBy;
+
     String flightId;
 
     List<String> seatIds;

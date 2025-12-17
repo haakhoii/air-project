@@ -1,6 +1,7 @@
 package com.air.orchestrator_service.controller;
 
 import com.air.common_service.dto.ApiResponse;
+import com.air.common_service.dto.request.AdminCreateBookingRequest;
 import com.air.common_service.dto.request.BookAndPayRequest;
 import com.air.common_service.dto.request.BookingCreateRequest;
 import com.air.common_service.dto.response.BookingResponse;
@@ -10,10 +11,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -49,6 +47,26 @@ public class OrchestratorController {
     public ApiResponse<PaymentResponse> cancelBooking(@PathVariable("bookingId") String bookingId) {
         return ApiResponse.<PaymentResponse>builder()
                 .result(orchestratorService.cancelBooking(bookingId))
+                .build();
+    }
+
+    @PostMapping("/admin/booking")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<BookingResponse> adminCreateBooking(
+            @RequestBody AdminCreateBookingRequest request
+    ) {
+        return ApiResponse.<BookingResponse>builder()
+                .result(orchestratorService.adminCreateBookingAndHold(request))
+                .build();
+    }
+
+    @PostMapping("/admin/pay")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<PaymentResponse> adminPayCash(
+            @RequestParam("bookingId") String bookingId
+    ) {
+        return ApiResponse.<PaymentResponse>builder()
+                .result(orchestratorService.adminPayForGuest(bookingId))
                 .build();
     }
 

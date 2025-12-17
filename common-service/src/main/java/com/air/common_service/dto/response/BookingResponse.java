@@ -18,6 +18,8 @@ public class BookingResponse {
 
     String userId;
 
+    String createdBy;
+
     List<SeatResponse> seats;
 
     Double totalPrice;

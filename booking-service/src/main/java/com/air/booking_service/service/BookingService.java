@@ -55,6 +55,7 @@ public class BookingService {
 
         Booking booking = Booking.builder()
                 .userId(userId)
+                .createdBy(userId)
                 .flightId(flightId)
                 .seatIds(request.getSeatIds())
                 .totalPrice(totalPrice)
@@ -172,6 +173,47 @@ public class BookingService {
 
         booking.setBookingStatus(BookingStatus.CANCEL);
         bookingRepository.save(booking);
+    }
+
+    @Transactional
+    public BookingResponse bookForGuest(BookingCreateRequest request) {
+
+        String adminId = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        HoldSeatRequest holdRequest = new HoldSeatRequest(request.getSeatIds());
+        List<SeatResponse> seats = seatClient.hold(holdRequest).getResult();
+
+        String flightId = seats.get(0).getFlightId();
+        FlightResponse flight = flightClient.getFlightById(flightId).getResult();
+
+        double totalPrice = seats.stream()
+                .mapToDouble(s -> s.getSeatClass() == SeatClass.ECONOMY
+                        ? flight.getPriceEconomy()
+                        : flight.getPriceBusiness())
+                .sum();
+
+        Booking booking = Booking.builder()
+                .userId("GUEST")
+                .createdBy(adminId)
+                .flightId(flightId)
+                .seatIds(request.getSeatIds())
+                .totalPrice(totalPrice)
+                .bookingStatus(BookingStatus.PENDING)
+                .createdAt(Instant.now())
+                .build();
+
+        bookingRepository.save(booking);
+
+        redisTemplate.opsForValue().set(
+                BOOKING_KEY + booking.getId(),
+                adminId,
+                BOOKING_TTL_SECONDS,
+                TimeUnit.SECONDS
+        );
+
+        return BookingMapper.toBookingResponse(booking, seats);
     }
 
 }
